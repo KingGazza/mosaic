@@ -6,3 +6,9 @@ sources:
       - name: dim_gl_account
       - name: dim_store
       - name: dim_calendar
+      - name: fct_sales
+      - name: dim_item
+      - name: dim_subclass
+      - name: dim_class
+      - name: dim_transaction_type
+      - name: dim_department
