@@ -1,0 +1,46 @@
+models:
+  - name: dbt_gl_model
+    semantic_model:
+      enabled: true
+    primary_entity: gl_transaction
+    agg_time_dimension: date_key
+    columns:
+      - name: account_id
+        entity:
+          type: foreign
+          name: account
+      - name: store_id
+        entity:
+          type: foreign
+          name: store
+      - name: date_key
+        granularity: day
+        dimension:
+          type: time
+      - name: fiscal_quarter
+        dimension:
+          type: categorical
+      - name: account_type
+        dimension:
+          type: categorical
+    metrics:
+      - name: net_gl_amount
+        label: Net GL Amount
+        type: simple
+        agg: sum
+        expr: net_amount
+      - name: transaction_count
+        type: simple
+        agg: count
+        expr: 1
+      - name: non_business_day_count
+        type: simple
+        agg: sum
+        expr: case when posted_on_non_business_day then 1 else 0 end
+
+metrics:
+  - name: non_business_day_posting_rate
+    label: Non-Business-Day Posting Rate
+    type: ratio
+    numerator: non_business_day_count
+    denominator: transaction_count

@@ -1,0 +1,8 @@
+sources:
+  - name: bam
+    schema: BAM
+    tables:
+      - name: fct_gl
+      - name: dim_gl_account
+      - name: dim_store
+      - name: dim_calendar
