@@ -21,8 +21,8 @@ table_alias_pairs as (
         t.value::string as source_table,
         a.value::string as alias
     from ddl,
-    lateral flatten(input => regexp_substr_all(ddl_text, '(?i)(?:from|join)\s+([\w.]+)\s+(?:as\s+)?(\w+)', 1, 1, 'e', 1)) t,
-    lateral flatten(input => regexp_substr_all(ddl_text, '(?i)(?:from|join)\s+([\w.]+)\s+(?:as\s+)?(\w+)', 1, 1, 'e', 2)) a
+    lateral flatten(input => regexp_substr_all(ddl_text, '(from|join)\\s+([\\w.]+)\\s+(as\\s+)?(\\w+)', 1, 1, 'ei', 2)) t,
+    lateral flatten(input => regexp_substr_all(ddl_text, '(from|join)\\s+([\\w.]+)\\s+(as\\s+)?(\\w+)', 1, 1, 'ei', 4)) a
     where t.index = a.index
 ),
 col_refs as (
@@ -30,8 +30,8 @@ col_refs as (
         al.value::string as alias,
         col.value::string as column_name
     from ddl,
-    lateral flatten(input => regexp_substr_all(ddl_text, '(\w+)\.(\w+)', 1, 1, 'e', 1)) al,
-    lateral flatten(input => regexp_substr_all(ddl_text, '(\w+)\.(\w+)', 1, 1, 'e', 2)) col
+    lateral flatten(input => regexp_substr_all(ddl_text, '(\\w+)\\.(\\w+)', 1, 1, 'e', 1)) al,
+    lateral flatten(input => regexp_substr_all(ddl_text, '(\\w+)\\.(\\w+)', 1, 1, 'e', 2)) col
     where al.index = col.index
 ),
 dynamic_column_lineage as (
