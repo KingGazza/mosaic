@@ -11,40 +11,57 @@
     {% endfor %}
 {% endfor %}
 
-{% set gl_relation = ref('dbt_gl_model') %}
-
-with ddl as (
-    select get_ddl('view', '{{ gl_relation.database }}.{{ gl_relation.schema }}.{{ gl_relation.identifier }}') as ddl_text
+{% set column_blocks = [] %}
+{% if execute %}
+    {% set discover_query %}
+        select table_name from information_schema.views where table_schema = 'BAM'
+    {% endset %}
+    {% set view_results = run_query(discover_query) %}
+    {% for row in view_results.rows %}
+        {% set view_name = row['TABLE_NAME'] | lower %}
+        {% set matching_node = nodes | selectattr('name', 'equalto', view_name) | list | first %}
+        {% if matching_node %}
+            {% set qualified_name = matching_node.database ~ '.' ~ matching_node.schema ~ '.' ~ matching_node.alias %}
+            {% set block %}
+(
+with ddl_{{ view_name }} as (
+    select get_ddl('view', '{{ qualified_name }}') as ddl_text
 ),
-table_alias_pairs as (
+table_alias_pairs_{{ view_name }} as (
     select
         t.value::string as source_table,
         a.value::string as alias
-    from ddl,
+    from ddl_{{ view_name }},
     lateral flatten(input => regexp_substr_all(ddl_text, '(from|join)\\s+([\\w.]+)\\s+(as\\s+)?(\\w+)', 1, 1, 'ei', 2)) t,
     lateral flatten(input => regexp_substr_all(ddl_text, '(from|join)\\s+([\\w.]+)\\s+(as\\s+)?(\\w+)', 1, 1, 'ei', 4)) a
     where t.index = a.index
 ),
-col_refs as (
+col_refs_{{ view_name }} as (
     select
         al.value::string as alias,
         col.value::string as column_name
-    from ddl,
+    from ddl_{{ view_name }},
     lateral flatten(input => regexp_substr_all(ddl_text, '(\\w+)\\.(\\w+)', 1, 1, 'e', 1)) al,
     lateral flatten(input => regexp_substr_all(ddl_text, '(\\w+)\\.(\\w+)', 1, 1, 'e', 2)) col
     where al.index = col.index
-),
-dynamic_column_lineage as (
-    select distinct
-        'dbt_gl_model' as model_name,
-        split_part(tap.source_table, '.', -1) as depends_on,
-        'source' as depends_on_type,
-        cr.column_name
-    from col_refs cr
-    join table_alias_pairs tap
-        on lower(cr.alias) = lower(tap.alias)
 )
+select distinct
+    '{{ view_name }}' as model_name,
+    split_part(tap.source_table, '.', -1) as depends_on,
+    'source' as depends_on_type,
+    cr.column_name
+from col_refs_{{ view_name }} cr
+join table_alias_pairs_{{ view_name }} tap
+    on lower(cr.alias) = lower(tap.alias)
+)
+            {% endset %}
+            {% do column_blocks.append(block) %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
 
 {{ rows | join('\nunion all\n') }}
+{% if column_blocks %}
 union all
-select * from dynamic_column_lineage
+{{ column_blocks | join('\nunion all\n') }}
+{% endif %}
